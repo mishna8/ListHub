@@ -99,10 +99,10 @@ def start(m: telebot.types.Message):
     if not allowed(uid):
         return bot.reply_to(m, f"הבוט פרטי. אין לך הרשאה.\nה-ID שלך: {uid}")
     bot.reply_to(m,
-        "היי! 🤖\n"
-        "• שלחי/שלח טקסט (גם כמה שורות) — כל שורה תתווסף ל-To-Do עם תאריך יצירה.\n"
-        "• '?' מציג את כל הרשימה עם תאריכים.\n"
-        "• '-<מספר>' מוחק פריט (למשל: -2)."
+        "WELCOM SHLOMIT\n"
+        "This is my ListHub app for keeping to do  lists\n"
+        "just text and it will add your items\n"
+        "text ? to get the current list and text -[number] to remove the item"
     )
 
 @bot.message_handler(content_types=['text'])
