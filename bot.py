@@ -6,9 +6,9 @@ import telebot
 
 #the token is env on render
 #BOT_TOKEN = "8468655841:AAEFFgX96L50KuL4BvNECI_Reuoq8YYOYWQ" 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-if not BOT_TOKEN:
-    raise RuntimeError("BOT_TOKEN is not set in environment variables")
+BOT_TOKEN = (os.getenv("BOT_TOKEN") or "").strip().strip('"').strip("'")
+if not re.match(r"^\d+:[A-Za-z0-9_-]+$", BOT_TOKEN):
+    raise RuntimeError("BOT_TOKEN is missing or malformed. Set it in Render → Environment without quotes.")
 
 # ---- ALLOW LIST ----
 ALLOWED = {1317349810, 816672824}  # שימי כאן את המספרים האמיתיים
