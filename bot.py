@@ -8,10 +8,10 @@ import telebot
 #BOT_TOKEN = "8468655841:AAEFFgX96L50KuL4BvNECI_Reuoq8YYOYWQ" 
 BOT_TOKEN = (os.getenv("BOT_TOKEN") or "").strip().strip('"').strip("'")
 if not re.match(r"^\d+:[A-Za-z0-9_-]+$", BOT_TOKEN):
-    raise RuntimeError("BOT_TOKEN is missing or malformed. Set it in Render → Environment without quotes.")
+    raise RuntimeError("BOT_TOKEN is missing or malformed.")
 
 # ---- ALLOW LIST ----
-ALLOWED = {1317349810, 816672824}  # שימי כאן את המספרים האמיתיים
+ALLOWED = {1317349810, 816672824}
 
 def allowed(user_id: int) -> bool:
     return user_id in ALLOWED
@@ -91,6 +91,8 @@ def try_react(bot, chat_id: int, message_id: int, emoji: str = "✅"):
 
 # ---- הבוט ----
 bot = telebot.TeleBot(BOT_TOKEN, parse_mode="HTML")
+bot.remove_webhook(drop_pending_updates=True)
+bot.infinity_polling(skip_pending=True)
 
 @bot.message_handler(commands=['start'])
 def start(m: telebot.types.Message):
@@ -98,12 +100,7 @@ def start(m: telebot.types.Message):
     print(f"[INFO] /start from {uid} - {m.from_user.first_name} ({m.from_user.username})")
     if not allowed(uid):
         return bot.reply_to(m, f"הבוט פרטי. אין לך הרשאה.\nה-ID שלך: {uid}")
-    bot.reply_to(m,
-        "WELCOM SHLOMIT\n"
-        "This is my ListHub app for keeping to do  lists\n"
-        "just text and it will add your items\n"
-        "text ? to get the current list and text -[number] to remove the item"
-    )
+    bot.reply_to(m, f"WELCOM SHLOMIT\nThis is my ListHub bot for keeping to do  lists" )
 
 @bot.message_handler(content_types=['text'])
 def on_text(m: telebot.types.Message):
