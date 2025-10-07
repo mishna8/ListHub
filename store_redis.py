@@ -21,3 +21,14 @@ def get_messages(user_id: int, limit: int = 20):
     keys = REDIS.keys(pattern)
     keys = sorted(keys, reverse=True)[:limit]
     return [REDIS.get(k) for k in keys]
+
+def clear_messages(user_id: int) -> int:
+    """Remove all message keys for a specific user."""
+    pattern = f"msg:{user_id}:*"
+    keys = REDIS.keys(pattern)
+    if not keys:
+        return 0
+    for k in keys:
+        REDIS.delete(k)
+    log.info(f"Deleted {len(keys)} messages for user {user_id}")
+    return len(keys)
