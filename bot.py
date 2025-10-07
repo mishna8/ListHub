@@ -61,7 +61,31 @@ def on_start(message: Message):
         bot.reply_to(message, "❌ Not authorized to use this bot")
     bot.reply_to(message, "WELCOM SHLOMIT <3")
 
+#---ON CLEAR
+@bot.message_handler(commands=["clear"])
+def on_clear(message: Message):
+    uid = message.from_user.id
+    log.info(f"/clear from uid={uid}, username={message.from_user.username}")
+    if not allowed(uid):
+        bot.reply_to(message, "❌ Not authorized to use this bot")
+        return
+    
+    #Delete all stored messages for the current user
+    try:
+        deleted = store_redis.clear_messages(uid)
+        bot.reply_to(
+            message,
+            f"Cleared {deleted} saved messages."
+            if deleted > 0 else "Nothing to clear."
+        )
+        log.info(f"User {uid} cleared {deleted} messages from Redis")
+    except Exception as e:
+        log.error(f"Redis clear failed: {e}")
+        bot.reply_to(message, "⚠️ Failed to clear messages from Redis.")
+
+
 #---ON TEXT + ? 
+# must be last so handler will fail to compare all commands and only then get here 
 @bot.message_handler(content_types=["text"])
 def on_text(message):
     uid = message.from_user.id
@@ -99,27 +123,6 @@ def on_text(message):
     bot.reply_to(message, "HELLOW WORLD")
     return
 
-#---ON CLEAR
-@bot.message_handler(commands=["clear"])
-def on_clear(message: Message):
-    uid = message.from_user.id
-    log.info(f"/clear from uid={uid}, username={message.from_user.username}")
-    if not allowed(uid):
-        bot.reply_to(message, "❌ Not authorized to use this bot")
-        return
-    
-    #Delete all stored messages for the current user
-    try:
-        deleted = store_redis.clear_messages(uid)
-        bot.reply_to(
-            message,
-            f"Cleared {deleted} saved messages."
-            if deleted > 0 else "Nothing to clear."
-        )
-        log.info(f"User {uid} cleared {deleted} messages from Redis")
-    except Exception as e:
-        log.error(f"Redis clear failed: {e}")
-        bot.reply_to(message, "⚠️ Failed to clear messages from Redis.")
 
 
 #endregion 
