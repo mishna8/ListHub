@@ -1,8 +1,10 @@
-# bot.py — Shared list (2 users), JSON + GitHub Gist persistence, Israel timezone
-# Notes:
-# - Does NOT drop pending Telegram updates on wake (good for Render Free sleep)
-# - Saves data to a local JSON file (ephemeral) AND to a private GitHub Gist (persistent)
-# - ENV required: BOT_TOKEN, GITHUB_TOKEN (classic PAT with 'gist' scope). Optional: GIST_ID, GIST_FILENAME, GIST_DESCRIPTION, DATA_PATH.
+# bot.py — Shared list (2 users), hosted on render, redis DB 
+# - on text saves toDo item
+# - ? returns all items on list
+# - /clear deletss all items on list
+# - /del <num> deletes specific item on list
+# - /done <num> checks specific item on list 
+
 
 import os, re, string,  random
 import json
@@ -19,11 +21,11 @@ import store_redis
 
 # region settings
 
-# --- Logging  ---
+# ---- Logging  ---
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 log = logging.getLogger("hello-bot")
 
-# --- Env Variables ---
+# ---- Env Variables ---
 
 #BOT_TOKEN = "8468655841:AAEFFgX96L50KuL4BvNECI_Reuoq8YYOYWQ" 
 BOT_TOKEN = (os.getenv("BOT_TOKEN") or "")
@@ -46,7 +48,7 @@ def allowed(user_id: int) -> bool:
 #endregion
 
 
-# --- Bot ------------------------------------------------------------------------------------
+# ---- Bot ------------------------------------------------------------------------------------
 bot = telebot.TeleBot(BOT_TOKEN, parse_mode="HTML")
 app  = Flask(__name__)
 
@@ -72,7 +74,7 @@ def on_clear(message: Message):
     
     #Delete all stored messages for the current user
     try:
-        deleted = store_redis.clear_messages(uid)
+        deleted = store_redis.clear_shared_items()
         bot.reply_to(
             message,
             f"Cleared {deleted} saved messages."
@@ -82,6 +84,48 @@ def on_clear(message: Message):
     except Exception as e:
         log.error(f"Redis clear failed: {e}")
         bot.reply_to(message, "⚠️ Failed to clear messages from Redis.")
+
+#---ON DEL 
+@bot.message_handler(commands=["del"])
+def on_delete(message: Message):
+    uid = message.from_user.id
+    log.info(f"/del from uid={uid}, username={message.from_user.username}")
+    if not allowed(uid):
+        bot.reply_to(message, "❌ Not authorized to use this bot")
+        return
+
+    try:
+        parts = message.text.split()
+        if len(parts) < 2 or not parts[1].isdigit():
+            bot.reply_to(message, "Usage: /del <number>")
+            return
+        idx = int(parts[1])
+        ok = store_redis.delete_shared_item(idx)
+        bot.reply_to(message, "🗑️ Deleted item." if ok else "Item not found.")
+    except Exception as e:
+        log.error(f"/del error: {e}")
+        bot.reply_to(message, "⚠️ Failed to delete item.")
+
+#---ON DONE
+@bot.message_handler(commands=["done"])
+def on_done(message: Message):
+    uid = message.from_user.id
+    log.info(f"/done from uid={uid}, username={message.from_user.username}")
+    if not allowed(uid):
+        bot.reply_to(message, "❌ Not authorized to use this bot")
+        return
+
+    try:
+        parts = message.text.split()
+        if len(parts) < 2 or not parts[1].isdigit():
+            bot.reply_to(message, "Usage: /done <number>")
+            return
+        idx = int(parts[1])
+        ok = store_redis.set_item_done(idx, done=True)
+        bot.reply_to(message, "✅ Marked as done." if ok else "Item not found.")
+    except Exception as e:
+        log.error(f"/done error: {e}")
+        bot.reply_to(message, "⚠️ Failed to update item.")
 
 
 #---ON TEXT + ? 
@@ -99,31 +143,34 @@ def on_text(message):
     # If the user sends '?', return saved items
     if text == "?":
         try:
-            items = store_redis.get_messages(uid)
+            items = store_redis.get_shared_items()
             if not items:
-                bot.reply_to(message, "No messages stored in Redis.")
+                bot.reply_to(message, "To Do List is empty")
                 return
-            formatted = "\n".join(f"• {t}" for t in items if t)
-            # Telegram message limit safeguard
-            if len(formatted) > 3800:
-                formatted = formatted[:3797] + "..."
-            bot.reply_to(message, formatted)
+            
+            lines = []
+            for i, it in enumerate(items, start=1):
+                mark = "✅" if it.get("done") else "⬜"
+                text = f"~{it['text']}~" if it.get("done") else it["text"]
+                lines.append(f"{i}. {mark} {text}")
+            reply = "🗒️ To-Do List:\n" + "\n".join(lines)
+            bot.reply_to(message, reply)
+
         except Exception as e:
             log.error(f"Redis read failed: {e}")
             bot.reply_to(message, "⚠️ Failed to read from Redis.")
         return
 
-    # Otherwise, store the text
+    # Otherwise, store the text to the shared default list
     try:
-        store_redis.save_message(uid, text)
-        log.info(f"Saved text for user {uid}: {text}")
+        store_redis.add_shared_item(text, uid)
+        log.info(f"Saved item to default list  {uid}: {text}")
     except Exception as e:
         log.error(f"Redis save failed: {e}")
+        bot.reply_to(message, "⚠️ Failed to save to Redis.")
 
     bot.reply_to(message, "HELLOW WORLD")
     return
-
-
 
 #endregion 
 
