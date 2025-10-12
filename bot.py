@@ -78,7 +78,6 @@ def on_clear(message: Message):
         bot.reply_to(
             message,
             f"Cleared {deleted} saved messages."
-            if deleted > 0 else "Nothing to clear."
         )
         log.info(f"User {uid} cleared {deleted} messages from Redis")
     except Exception as e:
@@ -163,13 +162,29 @@ def on_text(message):
 
     # Otherwise, store the text to the shared default list
     try:
-        store_redis.add_shared_item(text, uid)
-        log.info(f"Saved item to default list  {uid}: {text}")
+        # Split message into multiple lines
+        lines = [l.strip() for l in text.split("\n") if l.strip()]
+
+        if not lines:
+            bot.reply_to(message, "⚠️ No valid text to add.")
+            return
+
+        added_count = 0
+        for line in lines:
+            store_redis.add_shared_item(line, uid)
+            added_count += 1
+
+        # Reply summary
+        if added_count == 1:
+            bot.reply_to(message, "✅ Added 1 item to shared To-Do list")
+        else:
+            bot.reply_to(message, f"✅ Added {added_count} items to shared To-Do list")
+
     except Exception as e:
         log.error(f"Redis save failed: {e}")
         bot.reply_to(message, "⚠️ Failed to save to Redis.")
 
-    bot.reply_to(message, "HELLOW WORLD")
+    bot.reply_to(message, "✏️ Saved item.")
     return
 
 #endregion 
