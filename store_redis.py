@@ -89,3 +89,21 @@ def clear_shared_items():
     """Delete the entire shared to-do list."""
     REDIS.delete("todo:shared")
     log.info("Cleared shared to-do list")
+
+def delete_done_items():
+    """Delete all items from shared list that are marked as done=True."""
+    rows = REDIS.lrange("todo:shared", 0, -1)
+    if not rows:
+        return 0
+
+    items = [json.loads(r) for r in rows]
+    remaining = [it for it in items if not it.get("done")]
+
+    # Rewrite the list without done items
+    REDIS.delete("todo:shared")
+    for it in remaining:
+        REDIS.rpush("todo:shared", json.dumps(it, ensure_ascii=False))
+
+    removed_count = len(items) - len(remaining)
+    log.info(f"Deleted {removed_count} done items from shared list")
+    return removed_count

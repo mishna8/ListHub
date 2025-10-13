@@ -7,16 +7,13 @@
 
 
 import os, re, string,  random
-import json
-import time
 
 import telebot
-from telebot.types import Message
+from telebot.types import Message, types
 
 from flask import Flask, request, abort
 import logging
 from html import escape as esc
-from upstash_redis import Redis
 import store_redis
 
 # region settings
@@ -51,6 +48,26 @@ def allowed(user_id: int) -> bool:
 # ---- Bot ------------------------------------------------------------------------------------
 bot = telebot.TeleBot(BOT_TOKEN, parse_mode="HTML")
 app  = Flask(__name__)
+
+
+# region bot inline buttons 
+@bot.callback_query_handler(func=lambda call: True)
+def on_callback(call):
+    """Handle all button actions."""
+    try:
+        if call.data == "clear_done":
+            removed = store_redis.delete_done_items()
+            bot.answer_callback_query(call.id, "🧹 Done!")
+            bot.send_message(
+                call.message.chat.id,
+                f"🧹 Deleted {removed} done items." if removed else "✨ No done items to delete."
+            )
+        # ... (other callback handlers like done:/del:)
+    except Exception as e:
+        log.error(f"Callback error: {e}")
+        bot.answer_callback_query(call.id, "⚠️ Error occurred.")
+
+#endregion 
 
 
 # region bot actions
@@ -93,6 +110,7 @@ def on_delete(message: Message):
         bot.reply_to(message, "❌ Not authorized to use this bot")
         return
 
+    #Delete the specific item in the text
     try:
         parts = message.text.split()
         if len(parts) < 2 or not parts[1].isdigit():
@@ -114,6 +132,7 @@ def on_done(message: Message):
         bot.reply_to(message, "❌ Not authorized to use this bot")
         return
 
+    #Change the status of the specif item too done
     try:
         parts = message.text.split()
         if len(parts) < 2 or not parts[1].isdigit():
@@ -126,8 +145,24 @@ def on_done(message: Message):
         log.error(f"/done error: {e}")
         bot.reply_to(message, "⚠️ Failed to update item.")
 
+#---ON CLEAN
+@bot.message_handler(commands=["clean", "clear_done"])
+def on_clear_done(message):
+    uid = message.from_user.id
+    log.info(f"/clean from uid={uid}, username={message.from_user.username}")
+    if not allowed(uid):
+        bot.reply_to(message, "❌ Not authorized to use this bot")
+        return
 
-#---ON TEXT + ? 
+    #Delete items marked as done
+    removed = store_redis.delete_done_items()
+    if removed == 0:
+        bot.reply_to(message, "✨ No done items to delete.")
+    else:
+        bot.reply_to(message, f"🧹 Deleted {removed} done items.")
+
+
+#---ON TEXT + ? -----------------------------
 # must be last so handler will fail to compare all commands and only then get here 
 @bot.message_handler(content_types=["text"])
 def on_text(message):
@@ -154,6 +189,13 @@ def on_text(message):
                 lines.append(f"{i}. {mark} {text}")
             reply = "🗒️ To-Do List:\n" + "\n".join(lines)
             bot.reply_to(message, reply)
+            
+            # After sending all tasks - Add single cleanup button
+            cleanup_button = types.InlineKeyboardButton("🧹 Delete done items", callback_data="clear_done")
+            markup_cleanup = types.InlineKeyboardMarkup()
+            markup_cleanup.add(cleanup_button)
+
+            bot.send_message(message.chat.id, "Actions:", reply_markup=markup_cleanup)
 
         except Exception as e:
             log.error(f"Redis read failed: {e}")
