@@ -9,7 +9,8 @@
 import os, re, string,  random
 
 import telebot
-from telebot.types import Message, types
+from telebot import types
+from telebot.types import Message
 
 from flask import Flask, request, abort
 import logging
